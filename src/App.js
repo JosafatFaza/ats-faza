@@ -457,8 +457,8 @@ export default function App() {
       if (!t) return;
       setToken(t);
       const email = accounts[0]?.username;
-      const r = await getUserRole(t, email).catch(() => 'Reclutadora');
-      setRol(r || 'Reclutadora');
+      const r = await getUserRole(t, email).catch(() => null);
+      setRol(r || null);
       await loadData(t);
       setLoading(false);
     })();
@@ -507,12 +507,24 @@ export default function App() {
   const handleSetView = (v) => { setView(v); if (v === 'pipeline') setFilterVacId(null); };
 
   if (!isAuth) return <LoginScreen />;
-  if (loading) return (
-    <div className="loading-screen">
-      <div className="spinner" />
-      <div className="loading-text">Cargando ATS FAZA...</div>
+  if (!loading && isAuth && !rol) return (
+  <div className="login-screen">
+    <div className="login-card">
+      <div className="login-logo">FAZA</div>
+      <div className="login-sub" style={{color:'#ef4444',marginBottom:16}}>
+        Sin acceso al sistema
+      </div>
+      <p style={{fontSize:13,color:'var(--muted)',marginBottom:24}}>
+        Tu cuenta no tiene permisos para acceder al ATS de Reclutamiento.<br/>
+        Contacta a Josafat para solicitar acceso.
+      </p>
+      <button className="btn btn-ghost" style={{width:'100%',justifyContent:'center'}}
+        onClick={() => instance.logoutRedirect()}>
+        Cerrar sesión
+      </button>
     </div>
-  );
+  </div>
+);
 
   const counts = { vacantes: vacantes.length, candidatos: candidatos.length, requisiciones: requisiciones.filter(r => r.Estado === 'Pendiente').length };
   const hoy = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
