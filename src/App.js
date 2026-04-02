@@ -423,6 +423,7 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [showNuevaVacante, setShowNuevaVacante] = useState(false);
   const [showNuevoCandidato, setShowNuevoCandidato] = useState(false);
+  const [showNuevaRequisicion, setShowNuevaRequisicion] = useState(false);
 
   const showToast = msg => setToast(msg);
 
@@ -492,6 +493,47 @@ export default function App() {
     setSaving(false);
   };
 
+  function NuevaRequisicionModal({ onClose, onSave, saving }) {
+  const [form, setForm] = useState({ Title:'', Area:'', Lider:'', Motivo:'Vacante nueva', Urgencia:'Media', FechaRequerida:'', Descripcion:'', Estado:'Pendiente' });
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" onClick={e => e.stopPropagation()}>
+        <div className="modal-title">Nueva requisición de personal</div>
+        <div className="form-group"><label className="form-label">Puesto solicitado *</label><input className="form-input" value={form.Title} onChange={set('Title')} placeholder="Ej: Auxiliar de Almacén" /></div>
+        <div className="form-row">
+          <div className="form-group"><label className="form-label">Área *</label><input className="form-input" value={form.Area} onChange={set('Area')} placeholder="CEDIS" /></div>
+          <div className="form-group"><label className="form-label">Líder solicitante *</label><input className="form-input" value={form.Lider} onChange={set('Lider')} placeholder="Nombre del líder" /></div>
+        </div>
+        <div className="form-row">
+          <div className="form-group"><label className="form-label">Motivo</label>
+            <select className="form-input" value={form.Motivo} onChange={set('Motivo')}>
+              <option>Vacante nueva</option>
+              <option>Reemplazo</option>
+              <option>Baja voluntaria</option>
+              <option>Incremento de operación</option>
+              <option>Otro</option>
+            </select>
+          </div>
+          <div className="form-group"><label className="form-label">Urgencia</label>
+            <select className="form-input" value={form.Urgencia} onChange={set('Urgencia')}>
+              <option>Alta</option><option>Media</option><option>Baja</option>
+            </select>
+          </div>
+        </div>
+        <div className="form-group"><label className="form-label">Fecha requerida</label><input className="form-input" type="date" value={form.FechaRequerida} onChange={set('FechaRequerida')} /></div>
+        <div className="form-group"><label className="form-label">Descripción</label><textarea className="form-input" rows={3} value={form.Descripcion} onChange={set('Descripcion')} placeholder="Describe el perfil que necesitas..." /></div>
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" disabled={saving || !form.Title || !form.Area || !form.Lider} onClick={() => onSave(form)}>
+            {saving ? 'Guardando...' : 'Crear requisición'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
   // Nuevo candidato
   const handleNuevoCandidato = async (fields) => {
     setSaving(true);
@@ -532,6 +574,7 @@ export default function App() {
   const topbarButtons = () => {
     if (view === 'vacantes') return <button className="btn btn-primary" onClick={() => setShowNuevaVacante(true)}>+ Nueva vacante</button>;
     if (view === 'pipeline') return <button className="btn btn-primary" onClick={() => setShowNuevoCandidato(true)}>+ Candidato</button>;
+    if (view === 'requisiciones') return <button className="btn btn-primary" onClick={() => setShowNuevaRequisicion(true)}>+ Nueva requisición</button>;
     return <button className="btn btn-ghost" onClick={refresh}>↻ Actualizar</button>;
   };
 
@@ -563,6 +606,7 @@ export default function App() {
       {openCand && <CandidatoPanel candidato={openCand} vacantes={vacantes} onClose={() => setOpenCand(null)} onSave={handleSaveCandidato} saving={saving} />}
       {showNuevaVacante && <NuevaVacanteModal onClose={() => setShowNuevaVacante(false)} onSave={handleNuevaVacante} saving={saving} />}
       {showNuevoCandidato && <NuevoCandidatoModal vacantes={vacantes} onClose={() => setShowNuevoCandidato(false)} onSave={handleNuevoCandidato} saving={saving} />}
+      {showNuevaRequisicion && <NuevaRequisicionModal onClose={() => setShowNuevaRequisicion(false)} onSave={handleNuevaRequisicion} saving={saving} />}
       <Toast msg={toast} onHide={() => setToast('')} />
     </div>
   );
