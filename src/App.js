@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useMsal, useIsAuthenticated } from '@azure/msal-react';
 import { loginRequest, LISTS } from './authConfig';
-import { getUserRole, getVacantes, getCandidatos, getRequisiciones, getEntrevistas, moverEtapa, createItem, updateItem } from './services/graphService';
+import { getUserRole, getVacantes, getCandidatos, getRequisiciones, moverEtapa, createItem, updateItem } from './services/graphService';
 
-// ─── HELPERS ────────────────────────────────────────────────────────────────
 const ETAPAS = [
   { key: 'Postulado',   label: 'Postulado',   color: 'var(--postulado)'  },
   { key: 'Entrevista',  label: 'Entrevista',  color: 'var(--entrevista)' },
@@ -27,14 +26,12 @@ function diasDesde(fecha) {
 const COLORS = ['#3b82f6','#8b5cf6','#ec4899','#f59e0b','#14b8a6','#f97316','#6366f1','#10b981'];
 function colorFor(str) { let h = 0; for (let c of (str||'')) h = (h*31+c.charCodeAt(0))&0xffff; return COLORS[h % COLORS.length]; }
 
-// ─── TOAST ───────────────────────────────────────────────────────────────────
 function Toast({ msg, onHide }) {
   useEffect(() => { if (msg) { const t = setTimeout(onHide, 2800); return () => clearTimeout(t); } }, [msg, onHide]);
   if (!msg) return null;
   return <div className="toast">{msg}</div>;
 }
 
-// ─── LOGIN ───────────────────────────────────────────────────────────────────
 function LoginScreen() {
   const { instance } = useMsal();
   return (
@@ -50,17 +47,14 @@ function LoginScreen() {
   );
 }
 
-// ─── SIDEBAR ─────────────────────────────────────────────────────────────────
 function Sidebar({ view, setView, counts, user, rol }) {
-  const { instance } = useMsal();
   const nav = [
-    { id: 'dashboard',     label: 'Dashboard',        icon: '▦' },
-    { id: 'pipeline',      label: 'Pipeline',          icon: '⊟', count: counts.candidatos },
-    { id: 'vacantes',      label: 'Vacantes',          icon: '◈', count: counts.vacantes },
-    { id: 'requisiciones', label: 'Requisiciones',     icon: '◻', count: counts.requisiciones },
+    { id: 'dashboard',     label: 'Dashboard',       icon: '▦' },
+    { id: 'pipeline',      label: 'Pipeline',         icon: '⊟', count: counts.candidatos },
+    { id: 'vacantes',      label: 'Vacantes',         icon: '◈', count: counts.vacantes },
+    { id: 'requisiciones', label: 'Requisiciones',    icon: '◻', count: counts.requisiciones },
   ];
   if (rol === 'JefaRRHH' || rol === 'Admin') nav.push({ id: 'banco', label: 'Banco de talento', icon: '◑' });
-
   const ini = initials(user?.name || '');
   return (
     <aside className="sidebar">
@@ -88,14 +82,12 @@ function Sidebar({ view, setView, counts, user, rol }) {
   );
 }
 
-// ─── CANDIDATO DETAIL PANEL ──────────────────────────────────────────────────
 function CandidatoPanel({ candidato, vacantes, onClose, onSave, saving }) {
   const [stage, setStage] = useState('');
   const [nota, setNota] = useState('');
   if (!candidato) return null;
   const vac = vacantes.find(v => v.id === String(candidato.VacanteId));
   const etapaIdx = ETAPA_FLOW.indexOf(candidato.Etapa);
-
   return (
     <>
       <div className="overlay" onClick={onClose} />
@@ -157,13 +149,10 @@ function CandidatoPanel({ candidato, vacantes, onClose, onSave, saving }) {
   );
 }
 
-// ─── DASHBOARD ───────────────────────────────────────────────────────────────
-function Dashboard({ vacantes, candidatos, requisiciones, setView }) {
-  const hoy = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
+function Dashboard({ vacantes, candidatos, setView }) {
   const entrevistas = candidatos.filter(c => c.Etapa === 'Entrevista').length;
   const ingresos = candidatos.filter(c => c.Etapa === 'Aprobado').length;
   const priColors = { Alta: 'var(--rechazado)', Media: 'var(--entrevista)', Baja: 'var(--muted2)' };
-
   return (
     <div className="content">
       <div className="kpi-grid">
@@ -178,20 +167,17 @@ function Dashboard({ vacantes, candidatos, requisiciones, setView }) {
             <div className="section-title">Vacantes activas</div>
             <button className="btn btn-ghost" style={{ padding: '5px 10px', fontSize: 12 }} onClick={() => setView('vacantes')}>Ver todas →</button>
           </div>
-          {vacantes.slice(0, 6).map(v => {
-            const cnt = candidatos.filter(c => c.VacanteId === Number(v.id) || String(c.VacanteId) === v.id).length;
-            return (
-              <div key={v.id} className="vacante-row" onClick={() => setView('pipeline')}>
-                <div className="vacante-dot" style={{ background: priColors[v.Prioridad] || 'var(--muted2)' }} />
-                <div className="vacante-info">
-                  <div className="vacante-titulo">{v.Title}</div>
-                  <div className="vacante-meta">{v.Lider} · {v.Ubicacion}</div>
-                </div>
-                <span className={`prioridad-badge p-${v.Prioridad}`}>{v.Prioridad}</span>
+          {vacantes.slice(0, 6).map(v => (
+            <div key={v.id} className="vacante-row" onClick={() => setView('pipeline')}>
+              <div className="vacante-dot" style={{ background: priColors[v.Prioridad] || 'var(--muted2)' }} />
+              <div className="vacante-info">
+                <div className="vacante-titulo">{v.Title}</div>
+                <div className="vacante-meta">{v.Lider} · {v.Ubicacion}</div>
               </div>
-            );
-          })}
-          {vacantes.length === 0 && <div className="empty-col">Sin vacantes activas — crea la primera con el botón "+" de arriba</div>}
+              <span className={`prioridad-badge p-${v.Prioridad}`}>{v.Prioridad}</span>
+            </div>
+          ))}
+          {vacantes.length === 0 && <div className="empty-col">Sin vacantes — crea la primera con el botón "+" de arriba</div>}
         </div>
         <div>
           <div className="section-head"><div className="section-title">Pipeline por etapa</div></div>
@@ -211,7 +197,6 @@ function Dashboard({ vacantes, candidatos, requisiciones, setView }) {
   );
 }
 
-// ─── PIPELINE ────────────────────────────────────────────────────────────────
 function Pipeline({ candidatos, vacantes, onOpenCandidato, filterVacId, setFilterVacId }) {
   const filtered = filterVacId ? candidatos.filter(c => String(c.VacanteId) === filterVacId || c.VacanteId === Number(filterVacId)) : candidatos;
   return (
@@ -259,8 +244,7 @@ function Pipeline({ candidatos, vacantes, onOpenCandidato, filterVacId, setFilte
   );
 }
 
-// ─── VACANTES ────────────────────────────────────────────────────────────────
-function Vacantes({ vacantes, candidatos, onNuevaVacante }) {
+function Vacantes({ vacantes, candidatos }) {
   return (
     <div className="content">
       {vacantes.length === 0 ? (
@@ -297,7 +281,6 @@ function Vacantes({ vacantes, candidatos, onNuevaVacante }) {
   );
 }
 
-// ─── REQUISICIONES ───────────────────────────────────────────────────────────
 function Requisiciones({ requisiciones }) {
   const priColors = { Alta: '#fee2e2', Media: '#fef3c7', Baja: '#f1f5f9' };
   const priText   = { Alta: '#b91c1c', Media: '#92400e', Baja: 'var(--muted)' };
@@ -307,7 +290,7 @@ function Requisiciones({ requisiciones }) {
         <div className="empty-state">
           <div className="empty-state-icon">◻</div>
           <div className="empty-state-title">Sin requisiciones pendientes</div>
-          <div>Los líderes de área podrán crear solicitudes de personal desde aquí</div>
+          <div>Crea una nueva requisición con el botón "+" de arriba</div>
         </div>
       ) : requisiciones.map(r => (
         <div key={r.id} className="req-card">
@@ -331,7 +314,6 @@ function Requisiciones({ requisiciones }) {
   );
 }
 
-// ─── NUEVA VACANTE MODAL ──────────────────────────────────────────────────────
 function NuevaVacanteModal({ onClose, onSave, saving }) {
   const [form, setForm] = useState({ Title:'', Area:'', Lider:'', Ubicacion:'', Prioridad:'Media', Estado:'Abierta', Descripcion:'', Requisitos:'' });
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -365,7 +347,6 @@ function NuevaVacanteModal({ onClose, onSave, saving }) {
   );
 }
 
-// ─── NUEVO CANDIDATO MODAL ────────────────────────────────────────────────────
 function NuevoCandidatoModal({ vacantes, onClose, onSave, saving }) {
   const [form, setForm] = useState({ Title:'', Telefono:'', Email:'', Fuente:'Indeed', VacanteId:'', Etapa:'Postulado', Experiencia:'' });
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -403,97 +384,7 @@ function NuevoCandidatoModal({ vacantes, onClose, onSave, saving }) {
   );
 }
 
-// ─── MAIN APP ─────────────────────────────────────────────────────────────────
-const VIEW_TITLES = { dashboard:'Dashboard', pipeline:'Pipeline de candidatos', vacantes:'Vacantes activas', requisiciones:'Requisiciones de personal', banco:'Banco de talento' };
-
-export default function App() {
-  const { instance, accounts } = useMsal();
-  const isAuth = useIsAuthenticated();
-
-  const [token, setToken] = useState(null);
-  const [rol, setRol] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [view, setView] = useState('dashboard');
-  const [vacantes, setVacantes] = useState([]);
-  const [candidatos, setCandidatos] = useState([]);
-  const [requisiciones, setRequisiciones] = useState([]);
-  const [openCand, setOpenCand] = useState(null);
-  const [filterVacId, setFilterVacId] = useState(null);
-  const [toast, setToast] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [showNuevaVacante, setShowNuevaVacante] = useState(false);
-  const [showNuevoCandidato, setShowNuevoCandidato] = useState(false);
-  const [showNuevaRequisicion, setShowNuevaRequisicion] = useState(false);
-
-  const showToast = msg => setToast(msg);
-
-  // Get token
-  const getToken = useCallback(async () => {
-    if (!accounts[0]) return null;
-    try {
-      const res = await instance.acquireTokenSilent({ ...loginRequest, account: accounts[0] });
-      return res.accessToken;
-    } catch {
-      const res = await instance.acquireTokenRedirect(loginRequest);
-      return res?.accessToken;
-    }
-  }, [instance, accounts]);
-
-  // Load data
-  const loadData = useCallback(async (t) => {
-    try {
-      const [v, c, r] = await Promise.all([getVacantes(t), getCandidatos(t), getRequisiciones(t)]);
-      setVacantes(v);
-      setCandidatos(c);
-      setRequisiciones(r);
-    } catch (e) {
-      showToast('Error al cargar datos: ' + e.message);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!isAuth) { setLoading(false); return; }
-    (async () => {
-      const t = await getToken();
-      if (!t) return;
-      setToken(t);
-      const email = accounts[0]?.username;
-      const r = await getUserRole(t, email).catch(() => null);
-      setRol(r || null);
-      await loadData(t);
-      setLoading(false);
-    })();
-  }, [isAuth, getToken, loadData, accounts]);
-
-  const refresh = () => loadData(token);
-
-  // Mover candidato de etapa
-  const handleSaveCandidato = async (cand, stage, nota) => {
-    setSaving(true);
-    try {
-      const email = accounts[0]?.username || '';
-      if (stage) await moverEtapa(token, cand.id, cand.Etapa, stage, email, nota);
-      else if (nota) await updateItem(token, LISTS.candidatos, cand.id, { Notas: nota });
-      showToast(`✓ ${cand.Title} actualizado`);
-      setOpenCand(null);
-      await refresh();
-    } catch (e) { showToast('Error: ' + e.message); }
-    setSaving(false);
-  };
-
-  // Nueva vacante
-  const handleNuevaVacante = async (fields) => {
-    setSaving(true);
-    try {
-      await createItem(token, LISTS.vacantes, fields);
-      showToast('✓ Vacante creada');
-      setShowNuevaVacante(false);
-      await refresh();
-    } catch (e) { showToast('Error: ' + e.message); }
-    setSaving(false);
-  };
-
-  function NuevaRequisicionModal({ onClose, onSave, saving }) {
+function NuevaRequisicionModal({ onClose, onSave, saving }) {
   const [form, setForm] = useState({ Title:'', Area:'', Lider:'', Motivo:'Vacante nueva', Urgencia:'Media', FechaRequerida:'', Descripcion:'', Estado:'Pendiente' });
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
   return (
@@ -534,7 +425,90 @@ export default function App() {
   );
 }
 
-  // Nuevo candidato
+const VIEW_TITLES = { dashboard:'Dashboard', pipeline:'Pipeline de candidatos', vacantes:'Vacantes activas', requisiciones:'Requisiciones de personal', banco:'Banco de talento' };
+
+export default function App() {
+  const { instance, accounts } = useMsal();
+  const isAuth = useIsAuthenticated();
+  const [token, setToken] = useState(null);
+  const [rol, setRol] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState('dashboard');
+  const [vacantes, setVacantes] = useState([]);
+  const [candidatos, setCandidatos] = useState([]);
+  const [requisiciones, setRequisiciones] = useState([]);
+  const [openCand, setOpenCand] = useState(null);
+  const [filterVacId, setFilterVacId] = useState(null);
+  const [toast, setToast] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [showNuevaVacante, setShowNuevaVacante] = useState(false);
+  const [showNuevoCandidato, setShowNuevoCandidato] = useState(false);
+  const [showNuevaRequisicion, setShowNuevaRequisicion] = useState(false);
+
+  const showToast = msg => setToast(msg);
+
+  const getToken = useCallback(async () => {
+    if (!accounts[0]) return null;
+    try {
+      const res = await instance.acquireTokenSilent({ ...loginRequest, account: accounts[0] });
+      return res.accessToken;
+    } catch {
+      const res = await instance.acquireTokenRedirect(loginRequest);
+      return res?.accessToken;
+    }
+  }, [instance, accounts]);
+
+  const loadData = useCallback(async (t) => {
+    try {
+      const [v, c, r] = await Promise.all([getVacantes(t), getCandidatos(t), getRequisiciones(t)]);
+      setVacantes(v);
+      setCandidatos(c);
+      setRequisiciones(r);
+    } catch (e) {
+      showToast('Error al cargar datos: ' + e.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAuth) { setLoading(false); return; }
+    (async () => {
+      const t = await getToken();
+      if (!t) return;
+      setToken(t);
+      const email = accounts[0]?.username;
+      const r = await getUserRole(t, email).catch(() => null);
+      setRol(r || null);
+      await loadData(t);
+      setLoading(false);
+    })();
+  }, [isAuth, getToken, loadData, accounts]);
+
+  const refresh = () => loadData(token);
+
+  const handleSaveCandidato = async (cand, stage, nota) => {
+    setSaving(true);
+    try {
+      const email = accounts[0]?.username || '';
+      if (stage) await moverEtapa(token, cand.id, cand.Etapa, stage, email, nota);
+      else if (nota) await updateItem(token, LISTS.candidatos, cand.id, { Notas: nota });
+      showToast(`✓ ${cand.Title} actualizado`);
+      setOpenCand(null);
+      await refresh();
+    } catch (e) { showToast('Error: ' + e.message); }
+    setSaving(false);
+  };
+
+  const handleNuevaVacante = async (fields) => {
+    setSaving(true);
+    try {
+      await createItem(token, LISTS.vacantes, fields);
+      showToast('✓ Vacante creada');
+      setShowNuevaVacante(false);
+      await refresh();
+    } catch (e) { showToast('Error: ' + e.message); }
+    setSaving(false);
+  };
+
   const handleNuevoCandidato = async (fields) => {
     setSaving(true);
     try {
@@ -546,27 +520,43 @@ export default function App() {
     setSaving(false);
   };
 
+  const handleNuevaRequisicion = async (fields) => {
+    setSaving(true);
+    try {
+      await createItem(token, LISTS.requisiciones, fields);
+      showToast('✓ Requisición creada');
+      setShowNuevaRequisicion(false);
+      await refresh();
+    } catch (e) { showToast('Error: ' + e.message); }
+    setSaving(false);
+  };
+
   const handleSetView = (v) => { setView(v); if (v === 'pipeline') setFilterVacId(null); };
 
   if (!isAuth) return <LoginScreen />;
+
   if (!loading && isAuth && !rol) return (
-  <div className="login-screen">
-    <div className="login-card">
-      <div className="login-logo">FAZA</div>
-      <div className="login-sub" style={{color:'#ef4444',marginBottom:16}}>
-        Sin acceso al sistema
+    <div className="login-screen">
+      <div className="login-card">
+        <div className="login-logo">FAZA</div>
+        <div className="login-sub" style={{ color:'#ef4444', marginBottom:16 }}>Sin acceso al sistema</div>
+        <p style={{ fontSize:13, color:'var(--muted)', marginBottom:24 }}>
+          Tu cuenta no tiene permisos para acceder al ATS de Reclutamiento.<br/>
+          Contacta a Josafat para solicitar acceso.
+        </p>
+        <button className="btn btn-ghost" style={{ width:'100%', justifyContent:'center' }} onClick={() => instance.logoutRedirect()}>
+          Cerrar sesión
+        </button>
       </div>
-      <p style={{fontSize:13,color:'var(--muted)',marginBottom:24}}>
-        Tu cuenta no tiene permisos para acceder al ATS de Reclutamiento.<br/>
-        Contacta a Josafat para solicitar acceso.
-      </p>
-      <button className="btn btn-ghost" style={{width:'100%',justifyContent:'center'}}
-        onClick={() => instance.logoutRedirect()}>
-        Cerrar sesión
-      </button>
     </div>
-  </div>
-);
+  );
+
+  if (loading) return (
+    <div className="loading-screen">
+      <div className="spinner" />
+      <div className="loading-text">Cargando ATS FAZA...</div>
+    </div>
+  );
 
   const counts = { vacantes: vacantes.length, candidatos: candidatos.length, requisiciones: requisiciones.filter(r => r.Estado === 'Pendiente').length };
   const hoy = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -587,8 +577,7 @@ export default function App() {
           <div className="topbar-pill">{hoy}</div>
           {topbarButtons()}
         </div>
-
-        {view === 'dashboard' && <Dashboard vacantes={vacantes} candidatos={candidatos} requisiciones={requisiciones} setView={handleSetView} />}
+        {view === 'dashboard' && <Dashboard vacantes={vacantes} candidatos={candidatos} setView={handleSetView} />}
         {view === 'pipeline' && <Pipeline candidatos={candidatos} vacantes={vacantes} onOpenCandidato={setOpenCand} filterVacId={filterVacId} setFilterVacId={setFilterVacId} />}
         {view === 'vacantes' && <Vacantes vacantes={vacantes} candidatos={candidatos} />}
         {view === 'requisiciones' && <Requisiciones requisiciones={requisiciones} />}
@@ -602,7 +591,6 @@ export default function App() {
           </div>
         )}
       </main>
-
       {openCand && <CandidatoPanel candidato={openCand} vacantes={vacantes} onClose={() => setOpenCand(null)} onSave={handleSaveCandidato} saving={saving} />}
       {showNuevaVacante && <NuevaVacanteModal onClose={() => setShowNuevaVacante(false)} onSave={handleNuevaVacante} saving={saving} />}
       {showNuevoCandidato && <NuevoCandidatoModal vacantes={vacantes} onClose={() => setShowNuevoCandidato(false)} onSave={handleNuevoCandidato} saving={saving} />}
