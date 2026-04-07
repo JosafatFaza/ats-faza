@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useMsal, useIsAuthenticated } from '@azure/msal-react';
 import { loginRequest, LISTS } from './authConfig';
-import { getUserRole, getVacantes, getCandidatos, getRequisiciones, moverEtapa, createItem, updateItem } from './services/graphService';
+import { getUserRole, getVacantes, getCandidatos, getRequisiciones, getEntrevistas, moverEtapa, createItem, updateItem, getCalendarSlots, crearEntrevistaCalendar } from './services/graphService';
 
 const ETAPAS = [
   { key: 'Postulado',   label: 'Postulado',   color: 'var(--postulado)'  },
@@ -105,7 +105,7 @@ function Sidebar({ view, setView, counts, user, rol }) {
   );
 }
 
-function CandidatoPanel({ candidato, vacantes, onClose, onSave, saving }) {
+function CandidatoPanel({ candidato, vacantes, onClose, onSave, saving, onAgendar }) {
   const [stage, setStage] = useState('');
   const [nota, setNota] = useState('');
   if (!candidato) return null;
@@ -164,6 +164,7 @@ function CandidatoPanel({ candidato, vacantes, onClose, onSave, saving }) {
             <button className="btn btn-primary" style={{ flex: 1 }} disabled={saving || (!stage && !nota)} onClick={() => onSave(candidato, stage, nota)}>
               {saving ? 'Guardando...' : 'Guardar'}
             </button>
+            <button className="btn btn-ghost" onClick={() => onAgendar && onAgendar(candidato)}>📅 Entrevista</button>
             <button className="btn btn-ghost" onClick={onClose}>Cerrar</button>
           </div>
         </div>
@@ -490,6 +491,135 @@ function NuevaRequisicionModal({ onClose, onSave, saving, user }) {
   );
 }
 
+// ─── MODAL AGENDAR ENTREVISTA ────────────────────────────────────────────────
+function AgendarEntrevistaModal({ candidato, vacante, token, onClose, onSave, saving }) {
+  const [fecha, setFecha] = useState('');
+  const [slots, setSlots] = useState([]);
+  const [slotSelected, setSlotSelected] = useState(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [entrevistador, setEntrevistador] = useState(vacante?.Lider || '');
+  const [entrevistadorEmail, setEntrevistadorEmail] = useState('');
+  const [modalidad, setModalidad] = useState('Presencial');
+  const [notas, setNotas] = useState('');
+
+  const hoy = new Date().toISOString().split('T')[0];
+
+  const cargarSlots = async (f, email) => {
+    if (!f || !email) return;
+    setLoadingSlots(true);
+    setSlotSelected(null);
+    try {
+      const s = await getCalendarSlots(token, email, new Date(f + 'T12:00:00'));
+      setSlots(s);
+    } catch {
+      setSlots([]);
+    }
+    setLoadingSlots(false);
+  };
+
+  const handleFecha = e => {
+    setFecha(e.target.value);
+    if (entrevistadorEmail) cargarSlots(e.target.value, entrevistadorEmail);
+  };
+
+  const handleEmail = e => {
+    setEntrevistadorEmail(e.target.value);
+    if (fecha && e.target.value.includes('@')) cargarSlots(fecha, e.target.value);
+  };
+
+  const handleGuardar = () => {
+    if (!slotSelected) return;
+    onSave({
+      candidato, vacante, entrevistador, entrevistadorEmail,
+      modalidad, notas,
+      inicio: slotSelected.inicio,
+      fin: slotSelected.fin,
+    });
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-title">Agendar entrevista</div>
+
+        <div style={{ background: 'var(--bg)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>
+          <span style={{ color: 'var(--muted)' }}>Candidato: </span>
+          <strong>{candidato?.Title}</strong>
+          <span style={{ color: 'var(--muted)', marginLeft: 12 }}>Vacante: </span>
+          <strong>{vacante?.Title}</strong>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Entrevistador *</label>
+            <input className="form-input" value={entrevistador} onChange={e => setEntrevistador(e.target.value)} placeholder="Nombre del entrevistador" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Email del entrevistador *</label>
+            <input className="form-input" value={entrevistadorEmail} onChange={handleEmail} placeholder="correo@faza.com.mx" />
+          </div>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Fecha *</label>
+            <input className="form-input" type="date" min={hoy} value={fecha} onChange={handleFecha} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Modalidad</label>
+            <select className="form-input" value={modalidad} onChange={e => setModalidad(e.target.value)}>
+              <option>Presencial</option>
+              <option>Teams</option>
+              <option>Telefónica</option>
+            </select>
+          </div>
+        </div>
+
+        {fecha && entrevistadorEmail && (
+          <div className="form-group">
+            <label className="form-label">Horario disponible — {new Date(fecha + 'T12:00:00').toLocaleDateString('es-MX', { weekday:'long', day:'numeric', month:'long' })}</label>
+            {loadingSlots ? (
+              <div className="slots-loading">Consultando calendario...</div>
+            ) : (
+              <div className="slots-grid">
+                {slots.map(s => (
+                  <button
+                    key={s.hora}
+                    className={`slot-btn ${!s.disponible ? 'ocupado' : ''} ${slotSelected?.hora === s.hora ? 'selected' : ''}`}
+                    disabled={!s.disponible}
+                    onClick={() => setSlotSelected(s)}
+                  >
+                    {s.hora}
+                    {!s.disponible && <div style={{ fontSize: 10, opacity: .8 }}>Ocupado</div>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {slotSelected && (
+          <div style={{ background: 'var(--accent-light)', border: '1px solid var(--accent)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontSize: 13, color: 'var(--accent-dark)', marginTop: 8 }}>
+            Horario seleccionado: <strong>{slotSelected.hora} – {slotSelected.horaFin}</strong>
+          </div>
+        )}
+
+        <div className="form-group" style={{ marginTop: 12 }}>
+          <label className="form-label">Notas para el entrevistador</label>
+          <textarea className="form-input" rows={2} value={notas} onChange={e => setNotas(e.target.value)} placeholder="Instrucciones, contexto del candidato, etc." />
+        </div>
+
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" disabled={saving || !slotSelected || !entrevistadorEmail} onClick={handleGuardar}>
+            {saving ? 'Agendando...' : 'Confirmar entrevista'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const VIEW_TITLES = { dashboard:'Dashboard', pipeline:'Pipeline de candidatos', vacantes:'Vacantes activas', requisiciones:'Requisiciones de personal', banco:'Banco de talento' };
 
 export default function App() {
@@ -509,6 +639,8 @@ export default function App() {
   const [showNuevaVacante, setShowNuevaVacante] = useState(false);
   const [showNuevoCandidato, setShowNuevoCandidato] = useState(false);
   const [showNuevaRequisicion, setShowNuevaRequisicion] = useState(false);
+  const [showAgendarEntrevista, setShowAgendarEntrevista] = useState(false);
+  const [candidatoEntrevista, setCandidatoEntrevista] = useState(null);
 
   const showToast = msg => setToast(msg);
 
@@ -596,6 +728,41 @@ export default function App() {
     setSaving(false);
   };
 
+  const handleAgendarEntrevista = async ({ candidato, vacante, entrevistador, entrevistadorEmail, modalidad, notas, inicio, fin }) => {
+    setSaving(true);
+    try {
+      // Crear evento en calendario
+      await crearEntrevistaCalendar(token, {
+        candidatoNombre: candidato.Title,
+        candidatoEmail: candidato.Email || '',
+        vacanteTitulo: vacante?.Title || '',
+        entrevistadorEmail,
+        entrevistadorNombre: entrevistador,
+        inicio, fin, modalidad, notas,
+      });
+      // Guardar en REC_Entrevistas
+      await createItem(token, LISTS.entrevistas, {
+        Title: `${candidato.Title} - ${vacante?.Title || ''}`,
+        CandidatoId: Number(candidato.id),
+        VacanteId: Number(candidato.VacanteId),
+        Entrevistador: entrevistador,
+        FechaHora: inicio.toISOString(),
+        Modalidad: modalidad,
+        Resultado: 'Pendiente',
+        Notas: notas,
+      });
+      // Mover candidato a etapa Entrevista
+      const email = accounts[0]?.username || '';
+      await moverEtapa(token, candidato.id, candidato.Etapa, 'Entrevista', email, `Entrevista agendada con ${entrevistador}`);
+      showToast(`✓ Entrevista agendada con ${entrevistador}`);
+      setShowAgendarEntrevista(false);
+      setCandidatoEntrevista(null);
+      setOpenCand(null);
+      await refresh();
+    } catch (e) { showToast('Error al agendar: ' + e.message); }
+    setSaving(false);
+  };
+
   const handleSetView = (v) => {
     // Gerentes y Coordinadores solo pueden ver Requisiciones
     if (ROLES_REQUISICION.includes(rol) && v !== 'requisiciones') return;
@@ -670,10 +837,20 @@ export default function App() {
           </div>
         )}
       </main>
-      {openCand && <CandidatoPanel candidato={openCand} vacantes={vacantes} onClose={() => setOpenCand(null)} onSave={handleSaveCandidato} saving={saving} />}
+      {openCand && <CandidatoPanel candidato={openCand} vacantes={vacantes} onClose={() => setOpenCand(null)} onSave={handleSaveCandidato} saving={saving} onAgendar={(c) => { setCandidatoEntrevista(c); setShowAgendarEntrevista(true); }} />}
       {showNuevaVacante && <NuevaVacanteModal onClose={() => setShowNuevaVacante(false)} onSave={handleNuevaVacante} saving={saving} />}
       {showNuevoCandidato && <NuevoCandidatoModal vacantes={vacantes} onClose={() => setShowNuevoCandidato(false)} onSave={handleNuevoCandidato} saving={saving} />}
       {showNuevaRequisicion && <NuevaRequisicionModal onClose={() => setShowNuevaRequisicion(false)} onSave={handleNuevaRequisicion} saving={saving} user={accounts[0]} />}
+      {showAgendarEntrevista && candidatoEntrevista && (
+        <AgendarEntrevistaModal
+          candidato={candidatoEntrevista}
+          vacante={vacantes.find(v => v.id === String(candidatoEntrevista.VacanteId) || Number(v.id) === candidatoEntrevista.VacanteId)}
+          token={token}
+          onClose={() => { setShowAgendarEntrevista(false); setCandidatoEntrevista(null); }}
+          onSave={handleAgendarEntrevista}
+          saving={saving}
+        />
+      )}
       <Toast msg={toast} onHide={() => setToast('')} />
     </div>
   );
