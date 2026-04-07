@@ -14,6 +14,26 @@ const ETAPAS = [
 
 const ETAPA_FLOW = ['Postulado','Entrevista','Psicometria','Referencias','Aprobado'];
 
+const AREAS_DEPARTAMENTOS = {
+  'Administracion': ['Credito y Cobranza','Tesoreria','Contabilidad','Gestion Administrativa','Administracion'],
+  'Auditoria': ['Auditoria Operativa','Gestion Administrativa'],
+  'Construccion y Mantenimiento': ['Mantenimiento','Construccion y Mantenimiento','Construccion'],
+  'Juridico': ['Juridico'],
+  'Mejora Continua': ['Procesos'],
+  'Mercadotecnia y Publicidad': ['Diseño y Redes Sociales','Mercadotecnia'],
+  'Operaciones Combustible': ['Ventas','Regulaciones','Comercializadora','Transporte','Estaciones Gasolina','Operaciones Combustible'],
+  'Operaciones Tiendas': ['Compras Insumos','Tienda Cedis','Operaciones Tiendas','Cedis','Compras Comercial'],
+  'Recursos Humanos': ['Nominas','Relaciones Laborales','Reclutamiento','Recursos Humanos','Seguridad patrimonial'],
+  'Tecnologias de la Informacion': ['Desarrollo de Software','Soporte Tecnico','Tecnologias de la Informacion'],
+};
+
+const AREAS = Object.keys(AREAS_DEPARTAMENTOS);
+
+// Roles que SOLO pueden ver Requisiciones
+const ROLES_REQUISICION = ['Gerente','Coordinador'];
+// Roles con acceso completo
+const ROLES_COMPLETOS = ['Reclutadora','JefaRRHH','Admin'];
+
 function initials(name = '') {
   return name.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase();
 }
@@ -48,13 +68,16 @@ function LoginScreen() {
 }
 
 function Sidebar({ view, setView, counts, user, rol }) {
-  const nav = [
-    { id: 'dashboard',     label: 'Dashboard',       icon: '▦' },
-    { id: 'pipeline',      label: 'Pipeline',         icon: '⊟', count: counts.candidatos },
-    { id: 'vacantes',      label: 'Vacantes',         icon: '◈', count: counts.vacantes },
-    { id: 'requisiciones', label: 'Requisiciones',    icon: '◻', count: counts.requisiciones },
-  ];
+  const esReclutamiento = ROLES_COMPLETOS.includes(rol);
+  const nav = [];
+  if (esReclutamiento) {
+    nav.push({ id: 'dashboard',     label: 'Dashboard',       icon: '▦' });
+    nav.push({ id: 'pipeline',      label: 'Pipeline',         icon: '⊟', count: counts.candidatos });
+    nav.push({ id: 'vacantes',      label: 'Vacantes',         icon: '◈', count: counts.vacantes });
+  }
+  nav.push({ id: 'requisiciones', label: 'Requisiciones', icon: '◻', count: counts.requisiciones });
   if (rol === 'JefaRRHH' || rol === 'Admin') nav.push({ id: 'banco', label: 'Banco de talento', icon: '◑' });
+
   const ini = initials(user?.name || '');
   return (
     <aside className="sidebar">
@@ -281,11 +304,24 @@ function Vacantes({ vacantes, candidatos }) {
   );
 }
 
-function Requisiciones({ requisiciones }) {
+function Requisiciones({ requisiciones, rol }) {
   const priColors = { Alta: '#fee2e2', Media: '#fef3c7', Baja: '#f1f5f9' };
   const priText   = { Alta: '#b91c1c', Media: '#92400e', Baja: 'var(--muted)' };
+  const esGerente = ROLES_REQUISICION.includes(rol);
+
+  const getVal = (field) => {
+    if (!field) return '—';
+    if (typeof field === 'object' && field.Value) return field.Value;
+    return field;
+  };
+
   return (
     <div className="content" style={{ maxWidth: 640 }}>
+      {esGerente && (
+        <div style={{ background: 'var(--accent-light)', border: '1px solid var(--accent)', borderRadius: 'var(--radius)', padding: '12px 18px', marginBottom: 16, fontSize: 13, color: 'var(--accent-dark)' }}>
+          Puedes crear requisiciones de personal para tu área usando el botón "+ Nueva requisición" de arriba.
+        </div>
+      )}
       {requisiciones.length === 0 ? (
         <div className="empty-state">
           <div className="empty-state-icon">◻</div>
@@ -300,11 +336,12 @@ function Requisiciones({ requisiciones }) {
               <div style={{ fontSize: 13.5, fontWeight: 600 }}>{r.Title}</div>
               <div style={{ fontSize: 12, color: 'var(--muted)' }}>Solicitado por {r.Lider}</div>
             </div>
-            <span className="prioridad-badge" style={{ marginLeft: 'auto', background: priColors[r.Urgencia], color: priText[r.Urgencia] }}>{r.Urgencia}</span>
+            <span className="prioridad-badge" style={{ marginLeft: 'auto', background: priColors[getVal(r.Urgencia)], color: priText[getVal(r.Urgencia)] }}>{getVal(r.Urgencia)}</span>
           </div>
           <div className="req-card-body">
-            <div><span style={{ color: 'var(--muted2)' }}>Área: </span>{r.Area}</div>
-            <div><span style={{ color: 'var(--muted2)' }}>Motivo: </span>{r.Motivo}</div>
+            <div><span style={{ color: 'var(--muted2)' }}>Área: </span>{getVal(r.Area)}</div>
+            <div><span style={{ color: 'var(--muted2)' }}>Departamento: </span>{getVal(r.Departamento) || '—'}</div>
+            <div><span style={{ color: 'var(--muted2)' }}>Motivo: </span>{getVal(r.Motivo)}</div>
             <div><span style={{ color: 'var(--muted2)' }}>Estado: </span>{r.Estado}</div>
             <div><span style={{ color: 'var(--muted2)' }}>Fecha requerida: </span>{r.FechaRequerida ? new Date(r.FechaRequerida).toLocaleDateString('es-MX') : '—'}</div>
           </div>
@@ -323,7 +360,12 @@ function NuevaVacanteModal({ onClose, onSave, saving }) {
         <div className="modal-title">Nueva vacante</div>
         <div className="form-group"><label className="form-label">Puesto *</label><input className="form-input" value={form.Title} onChange={set('Title')} placeholder="Ej: Analista de Operaciones" /></div>
         <div className="form-row">
-          <div className="form-group"><label className="form-label">Área *</label><input className="form-input" value={form.Area} onChange={set('Area')} placeholder="Operaciones" /></div>
+          <div className="form-group"><label className="form-label">Área *</label>
+            <select className="form-input" value={form.Area} onChange={set('Area')}>
+              <option value="">Seleccionar...</option>
+              {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
           <div className="form-group"><label className="form-label">Líder solicitante *</label><input className="form-input" value={form.Lider} onChange={set('Lider')} placeholder="Nombre del líder" /></div>
         </div>
         <div className="form-row">
@@ -384,17 +426,45 @@ function NuevoCandidatoModal({ vacantes, onClose, onSave, saving }) {
   );
 }
 
-function NuevaRequisicionModal({ onClose, onSave, saving }) {
-  const [form, setForm] = useState({ Title:'', Area:'', Lider:'', Motivo:'Vacante nueva', Urgencia:'Media', FechaRequerida:'', Descripcion:'', Estado:'Pendiente' });
+function NuevaRequisicionModal({ onClose, onSave, saving, user }) {
+  const [form, setForm] = useState({
+    Title:'', Area:'', Departamento:'', Lider: user?.name || '',
+    Motivo:'Vacante nueva', Urgencia:'Media', FechaRequerida:'', Descripcion:'', Estado:'Pendiente'
+  });
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const departamentos = form.Area ? (AREAS_DEPARTAMENTOS[form.Area] || []) : [];
+
+  const handleAreaChange = e => {
+    setForm(f => ({ ...f, Area: e.target.value, Departamento: '' }));
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" onClick={e => e.stopPropagation()}>
         <div className="modal-title">Nueva requisición de personal</div>
         <div className="form-group"><label className="form-label">Puesto solicitado *</label><input className="form-input" value={form.Title} onChange={set('Title')} placeholder="Ej: Auxiliar de Almacén" /></div>
         <div className="form-row">
-          <div className="form-group"><label className="form-label">Área *</label><input className="form-input" value={form.Area} onChange={set('Area')} placeholder="CEDIS" /></div>
-          <div className="form-group"><label className="form-label">Líder solicitante *</label><input className="form-input" value={form.Lider} onChange={set('Lider')} placeholder="Nombre del líder" /></div>
+          <div className="form-group"><label className="form-label">Área *</label>
+            <select className="form-input" value={form.Area} onChange={handleAreaChange}>
+              <option value="">Seleccionar área...</option>
+              {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+          <div className="form-group"><label className="form-label">Departamento *</label>
+            <select className="form-input" value={form.Departamento} onChange={set('Departamento')} disabled={!form.Area}>
+              <option value="">{form.Area ? 'Seleccionar...' : 'Primero selecciona área'}</option>
+              {departamentos.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-group"><label className="form-label">Líder solicitante *</label><input className="form-input" value={form.Lider} onChange={set('Lider')} placeholder="Tu nombre" /></div>
+          <div className="form-group"><label className="form-label">Urgencia</label>
+            <select className="form-input" value={form.Urgencia} onChange={set('Urgencia')}>
+              <option>Alta</option><option>Media</option><option>Baja</option>
+            </select>
+          </div>
         </div>
         <div className="form-row">
           <div className="form-group"><label className="form-label">Motivo</label>
@@ -406,18 +476,13 @@ function NuevaRequisicionModal({ onClose, onSave, saving }) {
               <option>Otro</option>
             </select>
           </div>
-          <div className="form-group"><label className="form-label">Urgencia</label>
-            <select className="form-input" value={form.Urgencia} onChange={set('Urgencia')}>
-              <option>Alta</option><option>Media</option><option>Baja</option>
-            </select>
-          </div>
+          <div className="form-group"><label className="form-label">Fecha requerida</label><input className="form-input" type="date" value={form.FechaRequerida} onChange={set('FechaRequerida')} /></div>
         </div>
-        <div className="form-group"><label className="form-label">Fecha requerida</label><input className="form-input" type="date" value={form.FechaRequerida} onChange={set('FechaRequerida')} /></div>
-        <div className="form-group"><label className="form-label">Descripción</label><textarea className="form-input" rows={3} value={form.Descripcion} onChange={set('Descripcion')} placeholder="Describe el perfil que necesitas..." /></div>
+        <div className="form-group"><label className="form-label">Descripción del perfil</label><textarea className="form-input" rows={3} value={form.Descripcion} onChange={set('Descripcion')} placeholder="Describe las funciones y el perfil que necesitas..." /></div>
         <div className="modal-actions">
           <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" disabled={saving || !form.Title || !form.Area || !form.Lider} onClick={() => onSave(form)}>
-            {saving ? 'Guardando...' : 'Crear requisición'}
+          <button className="btn btn-primary" disabled={saving || !form.Title || !form.Area || !form.Departamento || !form.Lider} onClick={() => onSave(form)}>
+            {saving ? 'Guardando...' : 'Enviar requisición'}
           </button>
         </div>
       </div>
@@ -524,14 +589,19 @@ export default function App() {
     setSaving(true);
     try {
       await createItem(token, LISTS.requisiciones, fields);
-      showToast('✓ Requisición creada');
+      showToast('✓ Requisición enviada correctamente');
       setShowNuevaRequisicion(false);
       await refresh();
     } catch (e) { showToast('Error: ' + e.message); }
     setSaving(false);
   };
 
-  const handleSetView = (v) => { setView(v); if (v === 'pipeline') setFilterVacId(null); };
+  const handleSetView = (v) => {
+    // Gerentes y Coordinadores solo pueden ver Requisiciones
+    if (ROLES_REQUISICION.includes(rol) && v !== 'requisiciones') return;
+    setView(v);
+    if (v === 'pipeline') setFilterVacId(null);
+  };
 
   if (!isAuth) return <LoginScreen />;
 
@@ -558,30 +628,39 @@ export default function App() {
     </div>
   );
 
-  const counts = { vacantes: vacantes.length, candidatos: candidatos.length, requisiciones: requisiciones.filter(r => r.Estado === 'Pendiente').length };
+  // Gerentes y Coordinadores van directo a Requisiciones
+  const defaultView = ROLES_REQUISICION.includes(rol) ? 'requisiciones' : 'dashboard';
+  const activeView = ROLES_REQUISICION.includes(rol) ? 'requisiciones' : view;
+
+  const counts = {
+    vacantes: vacantes.length,
+    candidatos: candidatos.length,
+    requisiciones: requisiciones.filter(r => r.Estado === 'Pendiente').length
+  };
+
   const hoy = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
 
   const topbarButtons = () => {
-    if (view === 'vacantes') return <button className="btn btn-primary" onClick={() => setShowNuevaVacante(true)}>+ Nueva vacante</button>;
-    if (view === 'pipeline') return <button className="btn btn-primary" onClick={() => setShowNuevoCandidato(true)}>+ Candidato</button>;
-    if (view === 'requisiciones') return <button className="btn btn-primary" onClick={() => setShowNuevaRequisicion(true)}>+ Nueva requisición</button>;
+    if (activeView === 'vacantes') return <button className="btn btn-primary" onClick={() => setShowNuevaVacante(true)}>+ Nueva vacante</button>;
+    if (activeView === 'pipeline') return <button className="btn btn-primary" onClick={() => setShowNuevoCandidato(true)}>+ Candidato</button>;
+    if (activeView === 'requisiciones') return <button className="btn btn-primary" onClick={() => setShowNuevaRequisicion(true)}>+ Nueva requisición</button>;
     return <button className="btn btn-ghost" onClick={refresh}>↻ Actualizar</button>;
   };
 
   return (
     <div className="app">
-      <Sidebar view={view} setView={handleSetView} counts={counts} user={accounts[0]} rol={rol} />
+      <Sidebar view={activeView} setView={handleSetView} counts={counts} user={accounts[0]} rol={rol} />
       <main className="main">
         <div className="topbar">
-          <div className="topbar-title">{VIEW_TITLES[view]}</div>
+          <div className="topbar-title">{VIEW_TITLES[activeView]}</div>
           <div className="topbar-pill">{hoy}</div>
           {topbarButtons()}
         </div>
-        {view === 'dashboard' && <Dashboard vacantes={vacantes} candidatos={candidatos} setView={handleSetView} />}
-        {view === 'pipeline' && <Pipeline candidatos={candidatos} vacantes={vacantes} onOpenCandidato={setOpenCand} filterVacId={filterVacId} setFilterVacId={setFilterVacId} />}
-        {view === 'vacantes' && <Vacantes vacantes={vacantes} candidatos={candidatos} />}
-        {view === 'requisiciones' && <Requisiciones requisiciones={requisiciones} />}
-        {view === 'banco' && (
+        {activeView === 'dashboard' && <Dashboard vacantes={vacantes} candidatos={candidatos} setView={handleSetView} />}
+        {activeView === 'pipeline' && <Pipeline candidatos={candidatos} vacantes={vacantes} onOpenCandidato={setOpenCand} filterVacId={filterVacId} setFilterVacId={setFilterVacId} />}
+        {activeView === 'vacantes' && <Vacantes vacantes={vacantes} candidatos={candidatos} />}
+        {activeView === 'requisiciones' && <Requisiciones requisiciones={requisiciones} rol={rol} />}
+        {activeView === 'banco' && (
           <div className="content">
             <div className="empty-state">
               <div className="empty-state-icon">◑</div>
@@ -594,7 +673,7 @@ export default function App() {
       {openCand && <CandidatoPanel candidato={openCand} vacantes={vacantes} onClose={() => setOpenCand(null)} onSave={handleSaveCandidato} saving={saving} />}
       {showNuevaVacante && <NuevaVacanteModal onClose={() => setShowNuevaVacante(false)} onSave={handleNuevaVacante} saving={saving} />}
       {showNuevoCandidato && <NuevoCandidatoModal vacantes={vacantes} onClose={() => setShowNuevoCandidato(false)} onSave={handleNuevoCandidato} saving={saving} />}
-      {showNuevaRequisicion && <NuevaRequisicionModal onClose={() => setShowNuevaRequisicion(false)} onSave={handleNuevaRequisicion} saving={saving} />}
+      {showNuevaRequisicion && <NuevaRequisicionModal onClose={() => setShowNuevaRequisicion(false)} onSave={handleNuevaRequisicion} saving={saving} user={accounts[0]} />}
       <Toast msg={toast} onHide={() => setToast('')} />
     </div>
   );
