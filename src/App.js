@@ -119,7 +119,7 @@ function CandidatoPanel({ candidato, vacantes, onClose, onSave, saving, onAgenda
           <div className="detail-avatar" style={{ background: colorFor(candidato.Title) }}>{initials(candidato.Title)}</div>
           <div>
             <div className="detail-name">{candidato.Title}</div>
-            <div className="detail-vacante">{vac?.Title || `Vacante #${candidato.VacanteId}`}</div>
+            <div className="detail-vacante">{vac?.Title || (candidato.VacanteId ? `Vacante #${candidato.VacanteId}` : 'Sin vacante asignada')}</div>
           </div>
           <button className="detail-close" onClick={onClose}>✕</button>
         </div>
@@ -251,7 +251,7 @@ function Pipeline({ candidatos, vacantes, onOpenCandidato, filterVacId, setFilte
                   return (
                     <div key={c.id} className="cand-card" onClick={() => onOpenCandidato(c)}>
                       <div className="cand-name">{c.Title}</div>
-                      <div className="cand-vacante">{vac?.Title || `Vacante #${c.VacanteId}`}</div>
+                      <div className="cand-vacante">{vac?.Title || (c.VacanteId ? `Vacante #${c.VacanteId}` : 'Sin vacante asignada')}</div>
                       <div className="cand-footer">
                         <span className={`source-pill src-${(c.Fuente||'Otro').replace(/\s/g,'-')}`}>{c.Fuente || 'Otro'}</span>
                         <span className="cand-exp">{c.Experiencia || ''}</span>
