@@ -85,3 +85,94 @@ export async function moverEtapa(token, candidatoId, etapaAnterior, etapaNueva, 
     Notas: notas,
   });
 }
+
+// ─── CALENDAR ────────────────────────────────────────────────────────────────
+
+export async function getCalendarSlots(token, entrevistadorEmail, fecha) {
+  // Obtener eventos del entrevistador en el día seleccionado
+  const inicio = new Date(fecha);
+  inicio.setHours(8, 0, 0, 0);
+  const fin = new Date(fecha);
+  fin.setHours(19, 0, 0, 0);
+
+  const url = `https://graph.microsoft.com/v1.0/users/${entrevistadorEmail}/calendarView` +
+    `?startDateTime=${inicio.toISOString()}&endDateTime=${fin.toISOString()}` +
+    `&$select=start,end,subject&$orderby=start/dateTime`;
+
+  let ocupados = [];
+  try {
+    const data = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+    });
+    if (data.ok) {
+      const json = await data.json();
+      ocupados = (json.value || []).map(e => ({
+        inicio: new Date(e.start.dateTime + 'Z'),
+        fin: new Date(e.end.dateTime + 'Z'),
+      }));
+    }
+  } catch (e) {
+    console.warn('No se pudo leer el calendario del entrevistador:', e.message);
+  }
+
+  // Generar slots de 1 hora de 8am a 6pm
+  const slots = [];
+  for (let h = 8; h < 18; h++) {
+    const slotInicio = new Date(fecha);
+    slotInicio.setHours(h, 0, 0, 0);
+    const slotFin = new Date(fecha);
+    slotFin.setHours(h + 1, 0, 0, 0);
+
+    // Verificar si el slot está ocupado
+    const ocupado = ocupados.some(e =>
+      (slotInicio >= e.inicio && slotInicio < e.fin) ||
+      (slotFin > e.inicio && slotFin <= e.fin) ||
+      (slotInicio <= e.inicio && slotFin >= e.fin)
+    );
+
+    slots.push({
+      hora: `${h.toString().padStart(2,'0')}:00`,
+      horaFin: `${(h+1).toString().padStart(2,'0')}:00`,
+      inicio: slotInicio,
+      fin: slotFin,
+      disponible: !ocupado,
+    });
+  }
+  return slots;
+}
+
+export async function crearEntrevistaCalendar(token, { candidatoNombre, candidatoEmail, vacanteTitulo, entrevistadorEmail, entrevistadorNombre, inicio, fin, modalidad, notas }) {
+  const evento = {
+    subject: `Entrevista — ${candidatoNombre} · ${vacanteTitulo}`,
+    body: {
+      contentType: 'HTML',
+      content: `
+        <p>Estimado/a ${entrevistadorNombre},</p>
+        <p>Se ha programado una entrevista con el siguiente candidato:</p>
+        <table>
+          <tr><td><b>Candidato:</b></td><td>${candidatoNombre}</td></tr>
+          <tr><td><b>Vacante:</b></td><td>${vacanteTitulo}</td></tr>
+          <tr><td><b>Modalidad:</b></td><td>${modalidad}</td></tr>
+          ${notas ? `<tr><td><b>Notas:</b></td><td>${notas}</td></tr>` : ''}
+        </table>
+        <p>Puedes gestionar este proceso en <a href="https://reclutamiento.faza.com.mx">reclutamiento.faza.com.mx</a></p>
+        <p>— ATS FAZA · Reclutamiento y Selección</p>
+      `
+    },
+    start: { dateTime: inicio.toISOString(), timeZone: 'America/Monterrey' },
+    end: { dateTime: fin.toISOString(), timeZone: 'America/Monterrey' },
+    location: { displayName: modalidad === 'Teams' ? 'Microsoft Teams' : modalidad === 'Telefónica' ? 'Llamada telefónica' : 'Oficinas FAZA — Torreón' },
+    attendees: [
+      { emailAddress: { address: entrevistadorEmail, name: entrevistadorNombre }, type: 'required' },
+      ...(candidatoEmail ? [{ emailAddress: { address: candidatoEmail, name: candidatoNombre }, type: 'required' }] : []),
+    ],
+    isOnlineMeeting: modalidad === 'Teams',
+    onlineMeetingProvider: modalidad === 'Teams' ? 'teamsForBusiness' : 'unknown',
+  };
+
+  return fetch('https://graph.microsoft.com/v1.0/me/events', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(evento),
+  }).then(r => r.json());
+}
