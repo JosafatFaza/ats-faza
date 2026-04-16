@@ -729,7 +729,7 @@ export default function App(){
   const hoy=new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
 
   // Nav especial para Gerente (solo psicometría si el rol es Gerente de RRHH)
-  const esLiliana=accounts[0]?.username==='liliana.jimenez@faza.com.mx';
+  const esLiliana=accounts[0]?.username==='liliana.jimenez@faza.com.mx'||rol==='Admin'||rol==='JefaRRHH';
 
   const topbarButtons=()=>{
     if(activeView==='vacantes')return<button className="btn btn-primary" onClick={()=>setShowNuevaVacante(true)}>+ Nueva vacante</button>;
