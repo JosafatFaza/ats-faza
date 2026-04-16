@@ -14,10 +14,9 @@ async function call(token, url, opts = {}) {
 
 function listUrl(listId) { return `${SITE_BASE}/lists/${listId}`; }
 
-export async function getItems(token, listId, filter = '', select = '') {
+export async function getItems(token, listId, filter = '') {
   let url = `${listUrl(listId)}/items?$expand=fields`;
   if (filter) url += `&$filter=${encodeURIComponent(filter)}`;
-  if (select) url += `&$select=${select}`;
   const data = await call(token, url);
   return (data?.value || []).map(i => ({ id: i.id, ...i.fields }));
 }
@@ -37,11 +36,12 @@ export async function getUserRole(token, email) {
 }
 
 export async function getVacantes(token) { return getItems(token, LISTS.vacantes, "fields/Estado ne 'Cancelada'"); }
-export async function getCandidatos(token, vacanteId = null) { const filter = vacanteId ? `fields/VacanteId eq ${vacanteId}` : ''; return getItems(token, LISTS.candidatos, filter); }
+export async function getCandidatos(token) { return getItems(token, LISTS.candidatos); }
 export async function getRequisiciones(token) { return getItems(token, LISTS.requisiciones); }
 export async function getEntrevistas(token) { return getItems(token, LISTS.entrevistas); }
 export async function getPsicometrias(token, candidatoId) { return getItems(token, LISTS.psicometrias, candidatoId ? `fields/CandidatoId eq ${candidatoId}` : ''); }
 export async function getReferencias(token, candidatoId) { return getItems(token, LISTS.referencias, candidatoId ? `fields/CandidatoId eq ${candidatoId}` : ''); }
+export async function getUniformes(token) { return getItems(token, LISTS.uniformes); }
 
 export async function moverEtapa(token, candidatoId, etapaAnterior, etapaNueva, responsable, notas = '') {
   await updateItem(token, LISTS.candidatos, candidatoId, { Etapa: etapaNueva });
@@ -51,7 +51,7 @@ export async function moverEtapa(token, candidatoId, etapaAnterior, etapaNueva, 
 export async function getCalendarSlots(token, entrevistadorEmail, fecha) {
   const inicio = new Date(fecha); inicio.setHours(8, 0, 0, 0);
   const fin = new Date(fecha); fin.setHours(19, 0, 0, 0);
-  const url = `https://graph.microsoft.com/v1.0/users/${entrevistadorEmail}/calendarView?startDateTime=${inicio.toISOString()}&endDateTime=${fin.toISOString()}&$select=start,end,subject&$orderby=start/dateTime`;
+  const url = `https://graph.microsoft.com/v1.0/users/${entrevistadorEmail}/calendarView?startDateTime=${inicio.toISOString()}&endDateTime=${fin.toISOString()}&$select=start,end,subject`;
   let ocupados = [];
   try {
     const data = await fetch(url, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } });
@@ -70,7 +70,7 @@ export async function getCalendarSlots(token, entrevistadorEmail, fecha) {
 export async function crearEntrevistaCalendar(token, { candidatoNombre, candidatoEmail, vacanteTitulo, entrevistadorEmail, entrevistadorNombre, inicio, fin, modalidad, notas }) {
   const evento = {
     subject: `Entrevista — ${candidatoNombre} · ${vacanteTitulo}`,
-    body: { contentType: 'HTML', content: `<p>Entrevista con <b>${candidatoNombre}</b> para la vacante <b>${vacanteTitulo}</b>.<br/>Modalidad: ${modalidad}<br/>${notas ? `Notas: ${notas}<br/>` : ''}Gestionar en: <a href="https://reclutamiento.faza.com.mx">reclutamiento.faza.com.mx</a></p>` },
+    body: { contentType: 'HTML', content: `<p>Entrevista con <b>${candidatoNombre}</b> para <b>${vacanteTitulo}</b>.<br/>Modalidad: ${modalidad}${notas ? `<br/>Notas: ${notas}` : ''}<br/><a href="https://reclutamiento.faza.com.mx">reclutamiento.faza.com.mx</a></p>` },
     start: { dateTime: inicio.toISOString(), timeZone: 'America/Monterrey' },
     end: { dateTime: fin.toISOString(), timeZone: 'America/Monterrey' },
     location: { displayName: modalidad === 'Teams' ? 'Microsoft Teams' : modalidad === 'Telefónica' ? 'Llamada telefónica' : 'Oficinas FAZA — Torreón' },
