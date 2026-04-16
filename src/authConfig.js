@@ -4,10 +4,7 @@ export const msalConfig = {
     authority: 'https://login.microsoftonline.com/b16dca4b-9062-4259-a5cd-2f8b4a3eafe2',
     redirectUri: window.location.origin,
   },
-  cache: {
-    cacheLocation: 'sessionStorage',
-    storeAuthStateInCookie: false,
-  },
+  cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false },
 };
 
 export const loginRequest = {
@@ -26,4 +23,5 @@ export const LISTS = {
   roles:         'd278cf7f-18ed-40d2-9912-4c4c65942f0c',
   psicometrias:  '4218256f-3afc-4f16-8eab-6617fcdf1735',
   referencias:   '5b919593-ddee-40a7-aeb4-91d6e94b215b',
+  uniformes:     '7a1eeed2-a98c-45fb-ab6b-8a452114c023',
 };
