@@ -24,4 +24,6 @@ export const LISTS = {
   requisiciones: 'abd91e51-5a38-44f3-9318-274179873aa2',
   entrevistas:   '90863e4b-b09f-42cf-89b9-1557025cdb8c',
   roles:         'd278cf7f-18ed-40d2-9912-4c4c65942f0c',
+  psicometrias:  '4218256f-3afc-4f16-8eab-6617fcdf1735',
+  referencias:   '5b919593-ddee-40a7-aeb4-91d6e94b215b',
 };
