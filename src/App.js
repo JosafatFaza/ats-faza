@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useMsal, useIsAuthenticated } from '@azure/msal-react';
 import { loginRequest, LISTS } from './authConfig';
-import { getUserRole, getVacantes, getCandidatos, getRequisiciones, getPsicometrias, getReferencias, moverEtapa, createItem, updateItem, getCalendarSlots, crearEntrevistaCalendar } from './services/graphService';
+import { getUserRole, getVacantes, getCandidatos, getRequisiciones, getPsicometrias, getReferencias, getUniformes, moverEtapa, createItem, updateItem, getCalendarSlots, crearEntrevistaCalendar } from './services/graphService';
 
 const ETAPAS = [
   { key: 'Postulado',   label: 'Postulado',   color: 'var(--postulado)'  },
@@ -608,7 +608,125 @@ function AgendarEntrevistaModal({candidato,vacante,token,onClose,onSave,saving})
 }
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
-const VIEW_TITLES={dashboard:'Dashboard',pipeline:'Pipeline de candidatos',vacantes:'Vacantes activas',requisiciones:'Requisiciones de personal',banco:'Banco de talento',psicometria:'Evaluaciones psicométricas'};
+// ─── UNIFORMES ───────────────────────────────────────────────────────────────
+const TALLAS=['XS','S','M','L','XL','XXL','XXXL','Unitalla'];
+const UBICACIONES_UNI=['La Laguna','Chihuahua','Cuencamé'];
+const ESTADO_COLORS={Pendiente:{bg:'#fef3c7',text:'#92400e'},Autorizado:{bg:'#dbeafe',text:'#1d4ed8'},Surtido:{bg:'#f3e8ff',text:'#7e22ce'},Entregado:{bg:'#dcfce7',text:'#166534'}};
+
+function UniformesView({uniformes,rol,token,saving,setSaving,showToast,refresh,user}){
+  const[showForm,setShowForm]=useState(false);
+  const[filtroUbi,setFiltroUbi]=useState('');
+  const[filtroEst,setFiltroEst]=useState('');
+  const[form,setForm]=useState({NombreColaborador:'',Producto:'',Talla:'M',Cantidad:1,Ubicacion:'La Laguna',Notas:''});
+  const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+  const esReclu=ROLES_COMPLETOS.includes(rol);
+  const filtrados=uniformes.filter(u=>{
+    const ub=getVal(u.Ubicacion);
+    if(filtroUbi&&ub!==filtroUbi)return false;
+    if(filtroEst&&u.Estado!==filtroEst)return false;
+    return true;
+  });
+  const guardar=async()=>{
+    setSaving(true);
+    try{
+      await createItem(token,LISTS.uniformes,{...form,Cantidad:Number(form.Cantidad),Solicitante:user?.name||'',Estado:'Pendiente',FechaSolicitud:new Date().toISOString(),Title:form.NombreColaborador});
+      showToast('✓ Pedido de uniforme enviado');
+      setShowForm(false);
+      setForm({NombreColaborador:'',Producto:'',Talla:'M',Cantidad:1,Ubicacion:'La Laguna',Notas:''});
+      await refresh();
+    }catch(e){showToast('Error: '+e.message);}
+    setSaving(false);
+  };
+  const cambiarEstado=async(u,nuevoEstado)=>{
+    setSaving(true);
+    try{await updateItem(token,LISTS.uniformes,u.id,{Estado:nuevoEstado});showToast('✓ Estado actualizado');await refresh();}
+    catch(e){showToast('Error: '+e.message);}
+    setSaving(false);
+  };
+  const pendientes=uniformes.filter(u=>u.Estado==='Pendiente').length;
+  const autorizados=uniformes.filter(u=>u.Estado==='Autorizado').length;
+  return(
+    <div className="content">
+      <div style={{display:'flex',gap:12,marginBottom:20,flexWrap:'wrap'}}>
+        <div className="kpi-card amber" style={{flex:1,minWidth:120,padding:'14px 16px'}}><div className="kpi-label">Pendientes</div><div className="kpi-value" style={{fontSize:24}}>{pendientes}</div></div>
+        <div className="kpi-card blue" style={{flex:1,minWidth:120,padding:'14px 16px'}}><div className="kpi-label">Autorizados</div><div className="kpi-value" style={{fontSize:24}}>{autorizados}</div></div>
+        <div className="kpi-card green" style={{flex:1,minWidth:120,padding:'14px 16px'}}><div className="kpi-label">Total pedidos</div><div className="kpi-value" style={{fontSize:24}}>{uniformes.length}</div></div>
+      </div>
+      <div style={{display:'flex',gap:8,marginBottom:16,alignItems:'center',flexWrap:'wrap'}}>
+        <span style={{fontSize:12,color:'var(--muted)'}}>Ubicación:</span>
+        {['','La Laguna','Chihuahua','Cuencamé'].map(u=>(
+          <button key={u} className={'filter-btn '+(filtroUbi===u?'active':'')} onClick={()=>setFiltroUbi(u)}>{u||'Todas'}</button>
+        ))}
+        <span style={{fontSize:12,color:'var(--muted)',marginLeft:8}}>Estado:</span>
+        {['','Pendiente','Autorizado','Surtido','Entregado'].map(e=>(
+          <button key={e} className={'filter-btn '+(filtroEst===e?'active':'')} onClick={()=>setFiltroEst(e)}>{e||'Todos'}</button>
+        ))}
+      </div>
+      {filtrados.length===0?(
+        <div className="empty-state"><div className="empty-state-icon">◈</div><div className="empty-state-title">Sin pedidos</div><div>Usa el botón "+ Nuevo pedido" para solicitar uniformes</div></div>
+      ):(
+        <div style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:'var(--radius)',overflow:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+            <thead><tr style={{background:'var(--bg)'}}>
+              {['Colaborador','Producto','Talla','Cant.','Ubicación','Solicitante','Fecha','Estado','Acción'].map(h=>(
+                <th key={h} style={{padding:'10px 14px',textAlign:'left',fontSize:11,fontWeight:600,color:'var(--muted)',textTransform:'uppercase',letterSpacing:'.04em',borderBottom:'1px solid var(--border)',whiteSpace:'nowrap'}}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {filtrados.map((u,i)=>{
+                const est=u.Estado||'Pendiente';
+                const ec=ESTADO_COLORS[est]||ESTADO_COLORS.Pendiente;
+                const fecha=u.FechaSolicitud?new Date(u.FechaSolicitud).toLocaleDateString('es-MX'):'—';
+                const sigEstado={Pendiente:'Autorizado',Autorizado:'Surtido',Surtido:'Entregado',Entregado:null};
+                const siguiente=sigEstado[est];
+                return(
+                  <tr key={u.id} style={{borderBottom:'1px solid var(--border)',background:i%2===0?'var(--surface)':'var(--bg)'}}>
+                    <td style={{padding:'10px 14px',fontWeight:500}}>{u.NombreColaborador||u.Title}</td>
+                    <td style={{padding:'10px 14px'}}>{u.Producto||'—'}</td>
+                    <td style={{padding:'10px 14px'}}>{getVal(u.Talla)||'—'}</td>
+                    <td style={{padding:'10px 14px',textAlign:'center'}}>{u.Cantidad||1}</td>
+                    <td style={{padding:'10px 14px'}}>{getVal(u.Ubicacion)||'—'}</td>
+                    <td style={{padding:'10px 14px',color:'var(--muted)',fontSize:12}}>{u.Solicitante||'—'}</td>
+                    <td style={{padding:'10px 14px',color:'var(--muted)',fontSize:12,whiteSpace:'nowrap'}}>{fecha}</td>
+                    <td style={{padding:'10px 14px'}}><span style={{fontSize:11,fontWeight:600,padding:'3px 8px',borderRadius:20,background:ec.bg,color:ec.text,whiteSpace:'nowrap'}}>{est}</span></td>
+                    <td style={{padding:'10px 14px'}}>
+                      {esReclu&&siguiente&&<button className="btn btn-ghost" style={{fontSize:11,padding:'3px 10px',whiteSpace:'nowrap'}} disabled={saving} onClick={()=>cambiarEstado(u,siguiente)}>→ {siguiente}</button>}
+                      {est==='Entregado'&&<span style={{fontSize:11,color:'var(--accent)'}}>✓</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {showForm&&(
+        <div className="modal-overlay" onClick={()=>setShowForm(false)}>
+          <div className="modal-card" style={{maxWidth:500}} onClick={e=>e.stopPropagation()}>
+            <div className="modal-title">Nuevo pedido de uniforme</div>
+            <div className="form-group"><label className="form-label">Nombre del colaborador *</label><input className="form-input" value={form.NombreColaborador} onChange={set('NombreColaborador')} placeholder="Nombre completo"/></div>
+            <div className="form-group"><label className="form-label">Producto *</label><input className="form-input" value={form.Producto} onChange={set('Producto')} placeholder="Ej: Camisa manga corta, Pantalón, Botas..."/></div>
+            <div className="form-row">
+              <div className="form-group"><label className="form-label">Talla *</label><select className="form-input" value={form.Talla} onChange={set('Talla')}>{TALLAS.map(t=><option key={t}>{t}</option>)}</select></div>
+              <div className="form-group"><label className="form-label">Cantidad *</label><input className="form-input" type="number" min={1} max={20} value={form.Cantidad} onChange={set('Cantidad')}/></div>
+            </div>
+            <div className="form-group"><label className="form-label">Ubicación *</label><select className="form-input" value={form.Ubicacion} onChange={set('Ubicacion')}>{UBICACIONES_UNI.map(u=><option key={u}>{u}</option>)}</select></div>
+            <div className="form-group"><label className="form-label">Notas</label><textarea className="form-input" rows={2} value={form.Notas} onChange={set('Notas')} placeholder="Color, urgente, etc."/></div>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={()=>setShowForm(false)}>Cancelar</button>
+              <button className="btn btn-primary" disabled={saving||!form.NombreColaborador||!form.Producto} onClick={guardar}>{saving?'Enviando...':'Enviar pedido'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div style={{position:'fixed',bottom:24,right:24,zIndex:30}}>
+        <button className="btn btn-primary" style={{boxShadow:'0 4px 14px rgba(22,163,74,.4)'}} onClick={()=>setShowForm(true)}>+ Nuevo pedido</button>
+      </div>
+    </div>
+  );
+}
+
+const VIEW_TITLES={dashboard:'Dashboard',pipeline:'Pipeline de candidatos',vacantes:'Vacantes activas',requisiciones:'Requisiciones de personal',banco:'Banco de talento',psicometria:'Evaluaciones psicométricas',uniformes:'Gestión de uniformes'};
 
 export default function App(){
   const{instance,accounts}=useMsal();
@@ -620,6 +738,7 @@ export default function App(){
   const[vacantes,setVacantes]=useState([]);
   const[candidatos,setCandidatos]=useState([]);
   const[requisiciones,setRequisiciones]=useState([]);
+  const[uniformes,setUniformes]=useState([]);
   const[openCand,setOpenCand]=useState(null);
   const[filterVacId,setFilterVacId]=useState(null);
   const[toast,setToast]=useState('');
@@ -640,8 +759,8 @@ export default function App(){
 
   const loadData=useCallback(async(t)=>{
     try{
-      const[v,c,r]=await Promise.all([getVacantes(t),getCandidatos(t),getRequisiciones(t)]);
-      setVacantes(v);setCandidatos(c);setRequisiciones(r);
+      const[v,c,r,u]=await Promise.all([getVacantes(t),getCandidatos(t),getRequisiciones(t),getUniformes(t)]);
+      setVacantes(v);setCandidatos(c);setRequisiciones(r);setUniformes(u);
     }catch(e){showToast('Error al cargar datos: '+e.message);}
   },[]);
 
@@ -729,12 +848,13 @@ export default function App(){
   const hoy=new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'});
 
   // Nav especial para Gerente (solo psicometría si el rol es Gerente de RRHH)
-  const esLiliana=accounts[0]?.username==='liliana.jimenez@faza.com.mx'||rol==='Admin'||rol==='JefaRRHH';
+  const esLiliana=accounts[0]?.username==='liliana.jimenez@faza.com.mx';
 
   const topbarButtons=()=>{
     if(activeView==='vacantes')return<button className="btn btn-primary" onClick={()=>setShowNuevaVacante(true)}>+ Nueva vacante</button>;
     if(activeView==='pipeline')return<button className="btn btn-primary" onClick={()=>setShowNuevoCandidato(true)}>+ Candidato</button>;
     if(activeView==='requisiciones')return<button className="btn btn-primary" onClick={()=>setShowNuevaRequisicion(true)}>+ Nueva requisición</button>;
+    if(activeView==='uniformes')return null;
     return<button className="btn btn-ghost" onClick={refresh}>↻ Actualizar</button>;
   };
 
@@ -751,6 +871,7 @@ export default function App(){
           {esLiliana&&<button className={`nav-item ${activeView==='psicometria'?'active':''}`} onClick={()=>setView('psicometria')}><span className="nav-icon">◎</span>Psicometría{candidatos.filter(c=>c.Etapa==='Psicometria').length>0&&<span className="nav-badge">{candidatos.filter(c=>c.Etapa==='Psicometria').length}</span>}</button>}
           <button className={`nav-item ${activeView==='requisiciones'?'active':''}`} onClick={()=>handleSetView('requisiciones')}><span className="nav-icon">◻</span>Requisiciones{counts.requisiciones>0&&<span className="nav-badge">{counts.requisiciones}</span>}</button>
           {(rol==='JefaRRHH'||rol==='Admin')&&<button className={`nav-item ${activeView==='banco'?'active':''}`} onClick={()=>handleSetView('banco')}><span className="nav-icon">◑</span>Banco de talento</button>}
+          <button className={`nav-item ${activeView==='uniformes'?'active':''}`} onClick={()=>setView('uniformes')}><span className="nav-icon">◈</span>Uniformes{uniformes.filter(u=>u.Estado==='Pendiente').length>0&&<span className="nav-badge">{uniformes.filter(u=>u.Estado==='Pendiente').length}</span>}</button>
         </nav>
         <div className="sidebar-footer">
           <div className="user-avatar">{initials(accounts[0]?.name||'')}</div>
@@ -769,6 +890,7 @@ export default function App(){
         {activeView==='requisiciones'&&<Requisiciones requisiciones={requisiciones} rol={rol}/>}
         {activeView==='psicometria'&&<PsicometriaView candidatos={candidatos} vacantes={vacantes} token={token} saving={saving} setSaving={setSaving} showToast={showToast} refresh={refresh}/>}
         {activeView==='banco'&&<div className="content"><div className="empty-state"><div className="empty-state-icon">◑</div><div className="empty-state-title">Banco de talento</div><div>Se activa en la Fase 3 del proyecto</div></div></div>}
+        {activeView==='uniformes'&&<UniformesView uniformes={uniformes} rol={rol} token={token} saving={saving} setSaving={setSaving} showToast={showToast} refresh={refresh} user={accounts[0]}/>}
       </main>
       {openCand&&<CandidatoPanel candidato={openCand} vacantes={vacantes} onClose={()=>setOpenCand(null)} onSave={handleSaveCandidato} saving={saving} onAgendar={(c)=>{setCandidatoEntrevista(c);setShowAgendarEntrevista(true);}} token={token} showToast={showToast} setSaving={setSaving}/>}
       {showNuevaVacante&&<NuevaVacanteModal onClose={()=>setShowNuevaVacante(false)} onSave={handleNuevaVacante} saving={saving}/>}
